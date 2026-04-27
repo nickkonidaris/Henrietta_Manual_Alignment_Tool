@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Hen Slit Alignment</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f3f4f6;
+    color: #222;
+  }
+  h1 { margin: 0 0 4px 0; font-size: 20px; }
+  .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .panel {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .controls { width: 280px; flex: 0 0 auto; }
+  .canvas-area { flex: 1 1 700px; min-width: 0; }
+  label {
+    display: block;
+    font-size: 12px;
+    color: #444;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input[type="number"], select {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    background: white;
+  }
+  input[type="number"]:focus, select:focus {
+    outline: 2px solid #4a90e2;
+    outline-offset: -1px;
+  }
+  .output {
+    margin-top: 16px;
+    padding: 12px;
+    background: #fafafa;
+    border-radius: 6px;
+    border: 1px solid #eee;
+  }
+  .output h3 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: #444;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+  }
+  .row span:first-child { color: #555; }
+  .row span:last-child { font-weight: 600; }
+  .big {
+    font-size: 16px !important;
+    padding: 6px 0 !important;
+    border-top: 1px solid #ddd;
+    margin-top: 6px;
+  }
+  .legend {
+    margin-top: 14px;
+    font-size: 11px;
+    color: #666;
+    line-height: 1.5;
+  }
+  .legend .sw {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    vertical-align: middle;
+    border: 1px solid rgba(0,0,0,0.2);
+  }
+  canvas {
+    background: white;
+    border: 1px solid #ccc;
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .label {
+    font-size: 12px;
+    color: #555;
+    font-weight: 600;
+    margin: 12px 0 6px 0;
+  }
+  .help {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 10px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 1px 6px;
+    background: #eef;
+    border: 1px solid #cce;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Hen Slit Alignment</h1>
+<div class="sub">Enter the star's pixel position and PA. Tool reports the
+telescope offset to put the star on the chosen center pixel.</div>
+
+<div class="layout">
+
+  <div class="panel controls">
+    <label for="center">Center pixel</label>
+    <select id="center">
+      <option value="slit" selected>Center of 20″ slit (995, 1005)</option>
+      <option value="cc">Center of curvature (995, 941)</option>
+    </select>
+
+    <label for="xin">Star X (pix)</label>
+    <input id="xin" type="number" step="any" />
+
+    <label for="yin">Star Y (pix)</label>
+    <input id="yin" type="number" step="any" />
+
+    <label for="pain">PA (degrees)</label>
+    <input id="pain" type="number" step="any" value="0" />
+
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer;">
+      <input id="guidebox" type="checkbox" style="width:auto;margin:0;" />
+      Guide box move
+    </label>
+
+    <div class="output">
+      <h3>Pixel offset (star → center)</h3>
+      <div class="row"><span>Δx</span><span id="dxpix">—</span></div>
+      <div class="row"><span>Δy</span><span id="dypix">—</span></div>
+    </div>
+
+    <div class="output" id="skyOut">
+      <h3>Telescope offset (sky)</h3>
+      <div class="row"><span>E/W  (″)</span><span id="dE">—</span></div>
+      <div class="row"><span>N/S  (″)</span><span id="dN">—</span></div>
+      <div class="row big"><span>|Δ|  (″)</span><span id="dT">—</span></div>
+      <div style="font-size:11px;color:#666;margin-top:8px;line-height:1.5;">
+        Slew the telescope by these amounts in the directions shown.
+      </div>
+    </div>
+
+    <div class="output" id="guideOut" style="display:none;">
+      <h3>Guider presses</h3>
+      <div class="row big"><span>Press</span><span id="dPress">—</span></div>
+      <div style="font-size:11px;color:#666;margin-top:8px;line-height:1.5;">
+        From the 3-point calibrated 2×2 matrix.
+        Convention: right = +Gx, up = +Gy on the guider.
+      </div>
+    </div>
+
+    <div class="legend">
+      <div><span class="sw" style="background:rgba(140,200,255,0.35);border-color:#369"></span>FOV (26′ × 3.18′)</div>
+      <div><span class="sw" style="background:rgba(40,160,80,0.55);border-color:#0a0"></span>Slit (20″ wide)</div>
+      <div><span class="sw" style="background:#d22;border-radius:50%"></span>Star (entered)</div>
+      <div style="margin-top:6px">Plate scale 0.776 ″/pix · detector 2048 × 2048 · origin top-left.</div>
+    </div>
+  </div>
+
+  <div class="canvas-area">
+    <div class="panel">
+      <div class="label">Slit region</div>
+      <div class="help">FOV strip stretched vertically so the slit and the
+        star's perpendicular offset are clearly visible. Compass shows N/E
+        for the entered PA; detector origin (0,0) is up-left, off-canvas.</div>
+      <canvas id="zoom" width="800" height="380"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const DET_SIZE      = 2048;
+  const SLIT_X        = 995;     // slit drawing position (constant)
+  const SLIT_Y        = 1005;
+  const PIX_SCALE     = 0.776;   // arcsec/pix
+  const FOV_X_AS      = 26 * 60;
+  const FOV_Y_AS      = 3.18 * 60;
+  const FOV_X_PIX     = FOV_X_AS / PIX_SCALE;
+  const FOV_Y_PIX     = FOV_Y_AS / PIX_SCALE;
+  const SLIT_WIDTH_AS = 20;
+  const SLIT_W_PIX    = SLIT_WIDTH_AS / PIX_SCALE;
+
+  const CENTERS = {
+    slit: { x: 995, y: 1005, label: "Center of 20″ slit" },
+    cc:   { x: 995, y:  941, label: "Center of curvature" },
+  };
+
+  // Guider calibration matrix: M @ [gx, gy] = [dx, dy] (star pixel motion).
+  // gx +1 = "right" press, gy +1 = "up" press.
+  // Calibrated at PA = PA_CAL_DEG (set this if calibration wasn't done at PA = 0).
+  const M = [[ 0.725, -0.10  ],
+             [-0.0375, -0.65 ]];
+  const PA_CAL_DEG = 0;
+  const detM = M[0][0]*M[1][1] - M[0][1]*M[1][0];
+  const M_INV = [
+    [ M[1][1] / detM, -M[0][1] / detM],
+    [-M[1][0] / detM,  M[0][0] / detM],
+  ];
+
+  // Desired star motion (dx, dy) in detector pixels at the current PA
+  // -> guider press counts. The matrix M was calibrated at PA = PA_CAL_DEG;
+  // at any other PA the field has rotated relative to the (mechanically
+  // fixed) guider, so we rotate the desired motion by -(PA - PA_CAL_DEG)
+  // before applying M_INV.
+  //   M_eff(PA) = R(PA - PA_cal) @ M    ->    M_eff_inv = M_inv @ R(-(PA - PA_cal))
+  // R is screen-CCW (Y points down), matching our PA convention.
+  function pixelsToPresses(dx, dy, paDeg) {
+    const a = (paDeg - PA_CAL_DEG) * Math.PI / 180;
+    const c = Math.cos(a), s = Math.sin(a);
+    // Apply R(-a) on screen-CCW: [[c, -s], [s, c]]
+    const ux =  c*dx - s*dy;
+    const uy =  s*dx + c*dy;
+    const gx = Math.round(M_INV[0][0]*ux + M_INV[0][1]*uy);
+    const gy = Math.round(M_INV[1][0]*ux + M_INV[1][1]*uy);
+    const parts = [];
+    if (gx) parts.push(Math.abs(gx) + " " + (gx > 0 ? "right" : "left"));
+    if (gy) parts.push(Math.abs(gy) + " " + (gy > 0 ? "up"    : "down"));
+    return parts.length ? parts.join(", ") : "no move";
+  }
+
+  const $ = id => document.getElementById(id);
+
+  function targetCenter() {
+    return CENTERS[$("center").value] || CENTERS.slit;
+  }
+
+  function inputs() {
+    const c = targetCenter();
+    return {
+      x:  parseFloat($("xin").value),
+      y:  parseFloat($("yin").value),
+      pa: parseFloat($("pain").value) || 0,
+      cx: c.x,
+      cy: c.y,
+    };
+  }
+
+  function compute(inp) {
+    if (!Number.isFinite(inp.x) || !Number.isFinite(inp.y)) return null;
+    const dxPix = inp.x - inp.cx;
+    const dyPix = inp.y - inp.cy;
+    const dxAs  = dxPix * PIX_SCALE;
+    const dyAs  = dyPix * PIX_SCALE;
+    const r     = inp.pa * Math.PI / 180;
+    const s     = Math.sin(r), c = Math.cos(r);
+    const dE    = -s * dxAs - c * dyAs;
+    const dN    =  c * dxAs - s * dyAs;
+    return { dxPix, dyPix, dxAs, dyAs, dE, dN, total: Math.hypot(dE, dN) };
+  }
+
+  function setText(id, v) { $(id).textContent = v; }
+
+  // Format a signed offset as "<magnitude> <cardinal>" (e.g. -10 N → "10.0 S").
+  function fmtCardinal(value, posLabel, negLabel) {
+    const r = Math.round(value * 10) / 10;
+    if (Object.is(r, -0) || r === 0) return "0.0";
+    return Math.abs(r).toFixed(1) + " " + (r > 0 ? posLabel : negLabel);
+  }
+
+  function fmtSigned(value) {
+    const r = Math.round(value * 10) / 10;
+    if (Object.is(r, -0)) return "0.0";
+    return r.toFixed(1);
+  }
+
+  function updateOutput() {
+    const guideMode = $("guidebox").checked;
+    $("skyOut").style.display   = guideMode ? "none" : "";
+    $("guideOut").style.display = guideMode ? "" : "none";
+
+    const r = compute(inputs());
+    if (!r) {
+      ["dxpix","dypix","dE","dN","dT"].forEach(id => setText(id, "—"));
+      setText("dPress", "—");
+      return;
+    }
+    setText("dxpix", fmtSigned(r.dxPix));
+    setText("dypix", fmtSigned(r.dyPix));
+    setText("dE",    fmtCardinal(r.dE, "E", "W"));
+    setText("dN",    fmtCardinal(r.dN, "N", "S"));
+    setText("dT",    fmtSigned(r.total));
+    // Star-to-target pixel motion = (cx - x, cy - y) = (-dxPix, -dyPix).
+    setText("dPress", pixelsToPresses(-r.dxPix, -r.dyPix, inputs().pa));
+  }
+
+  function updatePlaceholders() {
+    const c = targetCenter();
+    $("xin").placeholder = String(c.x);
+    $("yin").placeholder = String(c.y);
+  }
+
+  // -------------------------------------------------------------------------
+  // Drawing
+  // -------------------------------------------------------------------------
+
+  function drawDetectorScene(ctx, W, H, det2cv) {
+    // FOV strip
+    const [fx0, fy0] = det2cv(SLIT_X - FOV_X_PIX/2, SLIT_Y - FOV_Y_PIX/2);
+    const [fx1, fy1] = det2cv(SLIT_X + FOV_X_PIX/2, SLIT_Y + FOV_Y_PIX/2);
+    ctx.fillStyle   = "rgba(140, 200, 255, 0.30)";
+    ctx.fillRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+    ctx.strokeStyle = "#369";
+    ctx.lineWidth   = 1.5;
+    ctx.strokeRect(fx0, fy0, fx1 - fx0, fy1 - fy0);
+
+    // Slit
+    const [sx0, sy0] = det2cv(SLIT_X - FOV_X_PIX/2, SLIT_Y - SLIT_W_PIX/2);
+    const [sx1, sy1] = det2cv(SLIT_X + FOV_X_PIX/2, SLIT_Y + SLIT_W_PIX/2);
+    ctx.fillStyle   = "rgba(40, 160, 80, 0.55)";
+    ctx.fillRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
+    ctx.strokeStyle = "#0a0";
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
+
+    // Target-centre crosshair (depends on dropdown choice)
+    const inp = inputs();
+    const [cx, cy] = det2cv(inp.cx, inp.cy);
+    const targetIsSlit = (inp.cx === SLIT_X && inp.cy === SLIT_Y);
+    ctx.strokeStyle = targetIsSlit ? "#0a0" : "#a60";
+    ctx.lineWidth   = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+    ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+    ctx.stroke();
+
+    // Star + offset arrow
+    if (Number.isFinite(inp.x) && Number.isFinite(inp.y)) {
+      const [stx, sty] = det2cv(inp.x, inp.y);
+      ctx.strokeStyle = "#d22";
+      ctx.fillStyle   = "#d22";
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(stx, sty);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(stx, sty, 5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    return { cx, cy };
+  }
+
+  function drawZoom() {
+    const cv  = $("zoom");
+    const ctx = cv.getContext("2d");
+    const W = cv.width, H = cv.height;
+
+    // Show full FOV X extent, plus padding in Y so star can be off-slit visibly.
+    const padX = 60;     // pix
+    const padY = 110;    // pix above & below FOV
+    const winWpix = FOV_X_PIX + 2 * padX;
+    const winHpix = FOV_Y_PIX + 2 * padY;
+
+    const sx = W / winWpix;
+    const sy = H / winHpix;
+    // Don't preserve aspect — stretch Y so the slit is clearly visible.
+    const xOff = SLIT_X - winWpix / 2;
+    const yOff = SLIT_Y - winHpix / 2;
+    const det2cv = (px, py) => [(px - xOff) * sx, (py - yOff) * sy];
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#fbfbfb";
+    ctx.fillRect(0, 0, W, H);
+
+    // Border
+    ctx.strokeStyle = "#bbb";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+    drawDetectorScene(ctx, W, H, det2cv);
+
+    // Compass rose (top-right of the panel)
+    drawCompass(ctx, W - 50, 50, 30, inputs().pa);
+
+    // Axis indicators (the detector origin is way up-and-left of this view)
+    ctx.fillStyle = "#666";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("(0,0) ↖", 6, 6);
+    ctx.fillText("Y ↓",     6, H - 16);
+    ctx.textAlign = "right";
+    ctx.fillText("X →",     W - 6, H - 16);
+
+    // Aspect-warning note
+    ctx.fillStyle = "#888";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(
+      "Y stretched ×" + (sy / sx).toFixed(1) + " for visibility",
+      W - 6, H - 4
+    );
+  }
+
+  function drawCompass(ctx, cx, cy, r, paDeg) {
+    const pa = paDeg * Math.PI / 180;
+    // N̂ on screen = ( cos PA, -sin PA )
+    // Ê on screen = (-sin PA, -cos PA )
+    const nx =  Math.cos(pa), ny = -Math.sin(pa);
+    const ex = -Math.sin(pa), ey = -Math.cos(pa);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Background disk
+    ctx.fillStyle   = "rgba(255,255,255,0.92)";
+    ctx.strokeStyle = "#888";
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    // Tick (faint reference) — fixed image axes
+    ctx.strokeStyle = "#ddd";
+    ctx.beginPath();
+    ctx.moveTo(-r, 0); ctx.lineTo(r, 0);
+    ctx.moveTo(0, -r); ctx.lineTo(0, r);
+    ctx.stroke();
+
+    drawArrow(ctx, 0, 0, nx * r * 0.85, ny * r * 0.85, "#c0392b", 2);
+    drawArrow(ctx, 0, 0, ex * r * 0.85, ey * r * 0.85, "#2c6cb8", 2);
+
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign    = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#c0392b";
+    ctx.fillText("N",  nx * (r + 10),  ny * (r + 10));
+    ctx.fillStyle = "#2c6cb8";
+    ctx.fillText("E",  ex * (r + 10),  ey * (r + 10));
+    ctx.fillStyle = "#888";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("S", -nx * (r + 10), -ny * (r + 10));
+    ctx.fillText("W", -ex * (r + 10), -ey * (r + 10));
+
+    ctx.restore();
+  }
+
+  function drawArrow(ctx, x0, y0, x1, y1, color, lw) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len, uy = dy / len;
+    const head = 6;
+    ctx.strokeStyle = color;
+    ctx.fillStyle   = color;
+    ctx.lineWidth   = lw;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ux * head - uy * head * 0.6,
+               y1 - uy * head + ux * head * 0.6);
+    ctx.lineTo(x1 - ux * head + uy * head * 0.6,
+               y1 - uy * head - ux * head * 0.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function update() {
+    updatePlaceholders();
+    updateOutput();
+    drawZoom();
+  }
+
+  document.querySelectorAll("input").forEach(el => {
+    el.addEventListener("input",  update);
+    el.addEventListener("change", update);
+  });
+  $("center").addEventListener("change", update);
+
+  update();
+</script>
+</body>
+</html>
