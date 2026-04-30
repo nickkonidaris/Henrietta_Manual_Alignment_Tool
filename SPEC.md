@@ -58,11 +58,17 @@ Math (Xs, Ys = star pixel; (cx, cy) = selected target; s = 0.776):
 
     dx_as = (Xs - cx) * s
     dy_as = (Ys - cy) * s
-    ΔE   = -sin(PA)*dx_as - cos(PA)*dy_as
-    ΔN   =  cos(PA)*dx_as - sin(PA)*dy_as
+    ΔE   =  sin(PA)*dx_as - cos(PA)*dy_as
+    ΔN   =  cos(PA)*dx_as + sin(PA)*dy_as
 
 Sign convention before formatting: positive ΔE = slew east, positive
 ΔN = slew north.
+
+The sin signs above are the negation of what `V · Ê` / `V · N̂` give
+under the on-screen compass convention. Empirically (LCO, 2026-04), the
+LCO offset command takes PA with the opposite sign from the compass —
+i.e., the offset rotation uses −PA while the compass and guider use +PA.
+The HTML implements this by negating PA inside `compute()`.
 
 ## Output: guide-box presses (when checkbox is on)
 Uses an empirical 2×2 calibration matrix that maps guider arrow presses

@@ -269,7 +269,10 @@ telescope offset to put the star on the chosen center pixel.</div>
     const dyPix = inp.y - inp.cy;
     const dxAs  = dxPix * PIX_SCALE;
     const dyAs  = dyPix * PIX_SCALE;
-    const r     = inp.pa * Math.PI / 180;
+    // Empirical at the telescope (2026-04): the LCO offset command takes
+    // PA with the opposite sign from the on-screen compass convention,
+    // so we rotate by -PA here. Compass and guider still use +PA.
+    const r     = -inp.pa * Math.PI / 180;
     const s     = Math.sin(r), c = Math.cos(r);
     const dE    = -s * dxAs - c * dyAs;
     const dN    =  c * dxAs - s * dyAs;
